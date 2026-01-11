@@ -7,6 +7,7 @@ const {
   getQueueById,
   joinQueue,
   serveNext,
+  getTokenStatus,
 } = require("../controllers/queue.controller");
 
 const authMiddleware = require("../middlewares/auth.middleware");
@@ -45,6 +46,10 @@ router.patch(
 
 
 
+router.get(
+  "/:queueId/token/:tokenNumber/status",
+  getTokenStatus
+);
 
 
 module.exports = router;

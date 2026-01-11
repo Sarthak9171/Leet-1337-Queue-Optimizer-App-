@@ -180,6 +180,55 @@ const serveNext = async (req, res) => {
   });
 };
 
+const getTokenStatus = async (req, res) => {
+  try {
+    const { queueId, tokenNumber } = req.params;
+
+    // 1. Find the token entry
+    const entry = await QueueEntry.findOne({
+      queueId,
+      tokenNumber: Number(tokenNumber),
+    });
+
+    if (!entry) {
+      return res.status(404).json({
+        success: false,
+        message: "Token not found",
+      });
+    }
+
+    // 2. Find queue
+    const queue = await Queue.findById(queueId);
+
+    // 3. Count people ahead
+    const peopleAhead = await QueueEntry.countDocuments({
+      queueId,
+      status: "waiting",
+      tokenNumber: { $lt: Number(tokenNumber) },
+    });
+
+    // 4. Temporary wait time logic (ML later)
+    const avgServeTime = 5; // minutes
+    const estimatedWaitTime = peopleAhead * avgServeTime;
+
+    // 5. Response
+    return res.status(200).json({
+      success: true,
+      tokenNumber: Number(tokenNumber),
+      status: entry.status,
+      peopleAhead,
+      currentServingToken: queue.currentServingToken,
+      estimatedWaitTime,
+    });
+  } catch (error) {
+    console.error("Get Token Status Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching token status",
+    });
+  }
+};
+
 
 module.exports = {
   createQueue,
@@ -187,4 +236,5 @@ module.exports = {
   getQueueById,
   joinQueue,
   serveNext,
+  getTokenStatus,
 };
