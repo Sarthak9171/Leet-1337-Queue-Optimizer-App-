@@ -6,6 +6,7 @@ const {
   getQueues,
   getQueueById,
   joinQueue,
+  serveNext,
 } = require("../controllers/queue.controller");
 
 const authMiddleware = require("../middlewares/auth.middleware");
@@ -32,6 +33,13 @@ router.get(
   "/:queueId",
   authMiddleware,
   getQueueById
+);
+
+router.patch(
+  "/:queueId/serve-next",
+  authMiddleware,
+  authorizeRoles("ADMIN"),
+  serveNext
 );
 
 

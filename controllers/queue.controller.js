@@ -1,4 +1,6 @@
 const Queue = require("../models/Queue");
+const QueueEntry = require("../models/QueueEntry");
+
 
 
 const createQueue = async (req, res) => {
@@ -132,6 +134,51 @@ const joinQueue = async (req, res) => {
   }
 };
 
+const serveNext = async (req, res) => {
+
+  const { queueId } = req.params;
+
+  const queue = await Queue.findById(queueId);
+  if (!queue) {
+    return res.status(404).json({ message: "Queue not found" });
+  }
+
+  const currentServing = await QueueEntry.findOne({
+    queueId,
+    status: "serving",
+  });
+
+  if (currentServing) {
+    currentServing.status = "completed";
+    await currentServing.save();
+  }
+
+  const nextEntry = await QueueEntry.findOne({
+    queueId,
+    status: "waiting",
+  }).sort({ tokenNumber: 1 });
+
+  if (!nextEntry) {
+    queue.currentServingToken = null;
+    await queue.save();
+
+    return res.json({
+      message: "Queue completed",
+      currentServingToken: null,
+    });
+  }
+
+  nextEntry.status = "serving";
+  await nextEntry.save();
+
+  queue.currentServingToken = nextEntry.tokenNumber;
+  await queue.save();
+
+  res.json({
+    message: "Next token is now being served",
+    currentServingToken: nextEntry.tokenNumber,
+  });
+};
 
 
 module.exports = {
@@ -139,4 +186,5 @@ module.exports = {
   getQueues,
   getQueueById,
   joinQueue,
+  serveNext,
 };
