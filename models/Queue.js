@@ -3,11 +3,11 @@ const mongoose = require("mongoose");
 const queueSchema = new mongoose.Schema(
   {
     businessId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Business",
+      type: String,
       required: true,
       index: true,
     },
+
 
     name: {
       type: String,
