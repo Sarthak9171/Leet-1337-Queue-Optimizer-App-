@@ -15,6 +15,12 @@ const queueSchema = new mongoose.Schema(
       trim: true,
     },
 
+    currentServingToken: {
+    type: Number,
+    default: null,
+    },
+
+
     isActive: {
       type: Boolean,
       default: true,
