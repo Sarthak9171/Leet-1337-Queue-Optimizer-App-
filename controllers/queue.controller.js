@@ -199,10 +199,16 @@ const getTokenStatus = async (req, res) => {
       status = "COMPLETED";
     }
 
-    const peopleAhead = Math.max(
-      token - (queue.currentServingToken || 0) - 1,
-      0
-    );
+    let peopleAhead = 0;
+
+    if (status === "WAITING") {
+      peopleAhead = Math.max(
+        token - queue.currentServingToken - 1,
+        0
+      );
+    }
+
+  
 
     const avgServeTime = 5; // minutes (temporary, ML later)
     const estimatedWaitTime = peopleAhead * avgServeTime;
