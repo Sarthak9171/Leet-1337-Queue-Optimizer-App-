@@ -38,8 +38,6 @@ router.get(
 
 router.patch(
   "/:queueId/serve-next",
-  authMiddleware,
-  authorizeRoles("ADMIN"),
   serveNext
 );
 
