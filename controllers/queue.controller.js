@@ -1,5 +1,4 @@
 const Queue = require("../models/Queue");
-const QueueEntry = require("../models/QueueEntry");
 
 
 
@@ -113,11 +112,16 @@ const joinQueue = async (req, res) => {
     if (!queue.currentToken) queue.currentToken = 0;
     if (!queue.lastIssuedToken) queue.lastIssuedToken = 0;
 
-    // Issue new token
+    // Init if missing
+    if (queue.currentServingToken == null) queue.currentServingToken = 0;
+    if (!queue.lastIssuedToken) queue.lastIssuedToken = 0;
+
+    // Issue token
     queue.lastIssuedToken += 1;
     await queue.save();
 
-    const position = queue.lastIssuedToken - queue.currentToken;
+    const position = queue.lastIssuedToken - queue.currentServingToken;
+
 
     return res.status(200).json({
       success: true,
@@ -135,87 +139,78 @@ const joinQueue = async (req, res) => {
 };
 
 const serveNext = async (req, res) => {
+  try {
+    const { queueId } = req.params;
 
-  const { queueId } = req.params;
+    const queue = await Queue.findById(queueId);
+    if (!queue) {
+      return res.status(404).json({ success: false, message: "Queue not found" });
+    }
 
-  const queue = await Queue.findById(queueId);
-  if (!queue) {
-    return res.status(404).json({ message: "Queue not found" });
-  }
+    if (queue.currentServingToken == null) {
+      queue.currentServingToken = 0;
+    }
 
-  const currentServing = await QueueEntry.findOne({
-    queueId,
-    status: "serving",
-  });
+    if (queue.currentServingToken >= queue.lastIssuedToken) {
+      return res.status(200).json({
+        success: true,
+        message: "Queue completed",
+        currentServingToken: null,
+      });
+    }
 
-  if (currentServing) {
-    currentServing.status = "completed";
-    await currentServing.save();
-  }
-
-  const nextEntry = await QueueEntry.findOne({
-    queueId,
-    status: "waiting",
-  }).sort({ tokenNumber: 1 });
-
-  if (!nextEntry) {
-    queue.currentServingToken = null;
+    queue.currentServingToken += 1;
     await queue.save();
 
-    return res.json({
-      message: "Queue completed",
-      currentServingToken: null,
+    return res.status(200).json({
+      success: true,
+      message: "Next token is now being served",
+      currentServingToken: queue.currentServingToken,
+    });
+  } catch (error) {
+    console.error("Serve Next Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while serving next token",
     });
   }
-
-  nextEntry.status = "serving";
-  await nextEntry.save();
-
-  queue.currentServingToken = nextEntry.tokenNumber;
-  await queue.save();
-
-  res.json({
-    message: "Next token is now being served",
-    currentServingToken: nextEntry.tokenNumber,
-  });
 };
+
 
 const getTokenStatus = async (req, res) => {
   try {
     const { queueId, tokenNumber } = req.params;
 
-    // 1. Find the token entry
-    const entry = await QueueEntry.findOne({
-      queueId,
-      tokenNumber: Number(tokenNumber),
-    });
-
-    if (!entry) {
+    const queue = await Queue.findById(queueId);
+    if (!queue) {
       return res.status(404).json({
         success: false,
-        message: "Token not found",
+        message: "Queue not found",
       });
     }
 
-    // 2. Find queue
-    const queue = await Queue.findById(queueId);
+    const token = Number(tokenNumber);
 
-    // 3. Count people ahead
-    const peopleAhead = await QueueEntry.countDocuments({
-      queueId,
-      status: "waiting",
-      tokenNumber: { $lt: Number(tokenNumber) },
-    });
+    let status = "WAITING";
 
-    // 4. Temporary wait time logic (ML later)
-    const avgServeTime = 5; // minutes
+    if (queue.currentServingToken === token) {
+      status = "SERVING";
+    } else if (queue.currentServingToken > token) {
+      status = "COMPLETED";
+    }
+
+    const peopleAhead = Math.max(
+      token - (queue.currentServingToken || 0) - 1,
+      0
+    );
+
+    const avgServeTime = 5; // minutes (temporary, ML later)
     const estimatedWaitTime = peopleAhead * avgServeTime;
 
-    // 5. Response
     return res.status(200).json({
       success: true,
-      tokenNumber: Number(tokenNumber),
-      status: entry.status,
+      tokenNumber: token,
+      status,
       peopleAhead,
       currentServingToken: queue.currentServingToken,
       estimatedWaitTime,
@@ -228,6 +223,7 @@ const getTokenStatus = async (req, res) => {
     });
   }
 };
+
 
 
 module.exports = {
